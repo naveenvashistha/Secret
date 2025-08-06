@@ -8,7 +8,7 @@ const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require('passport-google-oauth2').Strategy;
-const findOrCreate = require("mongoose-findorcreate");
+const MongoStore = require("connect-mongo");
 
 const app = express();
 
@@ -16,31 +16,40 @@ app.use(express.urlencoded());
 app.use(express.static("public"));
 app.set("view engine","ejs");
 
-app.use(session({
-  secret: "navi",
-  resave: false,
-  saveUninitialized: false
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: `mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONGO_PASSWORD}@cluster0.tsoasus.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
+    }),
+    cookie: { 
+      maxAge: 24 * 60 * 60 * 1000,
+      httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
+    },
+    resave: false,
+  })
+);
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-mongoose.connect("mongodb://localhost:27017/secretsDB", {useNewUrlParser: true,useUnifiedTopology: true });
-mongoose.set('useCreateIndex', true);
+mongoose.connect(`mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONGO_PASSWORD}@cluster0.tsoasus.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
 const secretSchema = new mongoose.Schema({
-  email: String,
-  password: String,
-  username: String,
   secrets: Array
 });
 
 secretSchema.plugin(passportLocalMongoose);
-secretSchema.plugin(findOrCreate);
 
 const User = mongoose.model("user",secretSchema);
 
 passport.use(User.createStrategy());
+
+
 
 passport.serializeUser(function(user, done) {
   done(null, user.id);
@@ -58,13 +67,27 @@ passport.use(new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/secrets",
     passReqToCallback   : true
   },
-  function(request,accessToken, refreshToken, profile, done) {
+  function(request, accessToken, refreshToken, profile, done) {
     console.log(profile);
-    User.findOrCreate({ username: profile.id, email: profile.email }, function (err, user) {
-      return done(err, user);
-    });
-  }
-));
+    User.findOne({ username: profile.email }, function(err, currentUser) {
+      if (err) {
+        return done(err);
+      }
+      if (!currentUser) {
+        // If the user doesn't exist, create them using User.register.
+        // We pass a dummy password because this user will only log in with Google.
+        // The password will never be used.
+        User.register({ username: profile.email}, "dummyPassword123", function(err, newUser) {
+          if (err) {
+            return done(err);
+          }
+          return done(null, newUser);
+        });
+      } else {
+        // If the user exists, ensure their googleId is set and return them.
+        return done(null, currentUser);
+  }});
+}));
 
 app.get("/",function(req,res){
   res.render("home");
@@ -75,7 +98,7 @@ app.get('/auth/google',
       [ 'profile','email' ] }
 ));
 
-app.get( '/auth/google/secrets',
+app.get('/auth/google/secrets',
     passport.authenticate( 'google', {
         successRedirect: '/secrets',
         failureRedirect: '/login'
