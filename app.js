@@ -9,11 +9,13 @@ const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require('passport-google-oauth2').Strategy;
 const MongoStore = require("connect-mongo");
+const path = require("path");
 
 const app = express();
 
 app.use(express.urlencoded());
 app.use(express.static("public"));
+app.set('views', path.join(__dirname, 'views'));
 app.set("view engine","ejs");
 
 app.use(
@@ -50,16 +52,18 @@ const User = mongoose.model("user",secretSchema);
 passport.use(User.createStrategy());
 
 
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
-passport.serializeUser(function(user, done) {
-  done(null, user.id);
-});
+// passport.serializeUser(function(user, done) {
+//   done(null, user.id);
+// });
 
-passport.deserializeUser(function(id, done) {
-  User.findById(id, function(err, user) {
-    done(err, user);
-  });
-});
+// passport.deserializeUser(function(id, done) {
+//   User.findById(id, function(err, user) {
+//     done(err, user);
+//   });
+// });
 
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
