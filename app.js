@@ -27,6 +27,7 @@ app.use(
     }),
     cookie: { 
       maxAge: 24 * 60 * 60 * 1000,
+      secure: true, // Set to true if using HTTPS
       httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
     },
     resave: false,
@@ -68,7 +69,7 @@ passport.deserializeUser(User.deserializeUser());
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/secrets",
+    callbackURL: process.env.CALLBACK_URL,
     passReqToCallback   : true
   },
   function(request, accessToken, refreshToken, profile, done) {
@@ -81,7 +82,7 @@ passport.use(new GoogleStrategy({
         // If the user doesn't exist, create them using User.register.
         // We pass a dummy password because this user will only log in with Google.
         // The password will never be used.
-        User.register({ username: profile.email}, "dummyPassword123", function(err, newUser) {
+        User.register({ username: profile.email}, process.env.DUMMY, function(err, newUser) {
           if (err) {
             return done(err);
           }
