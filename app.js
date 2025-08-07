@@ -66,6 +66,7 @@ passport.deserializeUser(User.deserializeUser());
 //   });
 // });
 
+// Google OAuth Strategy
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
